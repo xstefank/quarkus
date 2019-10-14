@@ -65,6 +65,7 @@ public enum Feature {
     MONGODB_PANACHE_KOTLIN,
     MUTINY,
     NARAYANA_JTA,
+    NARAYANA_LRA,
     NARAYANA_STM,
     NEO4J,
     OIDC,
