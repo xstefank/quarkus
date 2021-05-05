@@ -43,6 +43,12 @@ public class SmallRyeHealthConfig {
     String wellnessPath;
 
     /**
+     * The boolean stating whether the context should be propagated to each health check invocation.
+     */
+    @ConfigItem(defaultValue = "context-propagation")
+    String contextPropagation;
+
+    /**
      * SmallRye Health UI configuration
      */
     @ConfigItem
