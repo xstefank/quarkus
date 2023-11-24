@@ -27,6 +27,8 @@ public class QuarkusAsyncHealthCheckFactory extends AsyncHealthCheckFactory {
 
     @Override
     public Uni<HealthCheckResponse> callSync(HealthCheck healthCheck) {
+        System.out.println("healthCheck = " + healthCheck);
+        new Throwable().printStackTrace();
         Uni<HealthCheckResponse> healthCheckResponseUni = super.callSync(healthCheck);
         return BlockingOperationControl.isBlockingAllowed() ? healthCheckResponseUni
                 : healthCheckResponseUni.runSubscriptionOn(MutinyHelper.blockingExecutor(vertx, false));
@@ -34,6 +36,8 @@ public class QuarkusAsyncHealthCheckFactory extends AsyncHealthCheckFactory {
 
     @Override
     public Uni<HealthCheckResponse> callAsync(AsyncHealthCheck asyncHealthCheck) {
+        System.out.println("asyncHealthCheck = " + asyncHealthCheck);
+        new Throwable().printStackTrace();
         Uni<HealthCheckResponse> healthCheckResponseUni = super.callAsync(asyncHealthCheck);
         return !BlockingOperationControl.isBlockingAllowed() ? healthCheckResponseUni
                 : healthCheckResponseUni.runSubscriptionOn(MutinyHelper.executor(vertx));

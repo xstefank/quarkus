@@ -142,6 +142,9 @@ public class MongoHealthCheck implements HealthCheck {
             return builder.build();
         }
 
+        System.out.println("MongoHC#call Thread.currentThread().getName() = " + Thread.currentThread().getName());
+        System.out.println("Infrastructure.canCallerThreadBeBlocked() = " + Infrastructure.canCallerThreadBeBlocked());
+        new Throwable().printStackTrace();
         return Uni.combine().all().unis(unis)
                 .collectFailures() // We collect all failures to avoid partial responses.
                 .combinedWith(new Function<List<?>, HealthCheckResponse>() {
