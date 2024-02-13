@@ -13,7 +13,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import io.quarkus.devservices.common.Volumes;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
@@ -42,6 +41,7 @@ import io.quarkus.deployment.logging.LoggingSetupBuildItem;
 import io.quarkus.devservices.common.ConfigureUtil;
 import io.quarkus.devservices.common.ContainerAddress;
 import io.quarkus.devservices.common.ContainerLocator;
+import io.quarkus.logging.Log;
 import io.quarkus.runtime.LaunchMode;
 import io.quarkus.runtime.configuration.ConfigUtils;
 import io.strimzi.test.container.StrimziKafkaContainer;
@@ -262,19 +262,29 @@ public class DevServicesKafkaProcessor {
                             strimzi::close,
                             KAFKA_BOOTSTRAP_SERVERS, strimzi.getBootstrapServers());
                 case KAFKA_NATIVE:
-                    KafkaNativeContainer kafkaNative = new KafkaNativeContainer(DockerImageName.parse(config.imageName),
-                            config.fixedExposedPort,
-                            launchMode.getLaunchMode() == LaunchMode.DEVELOPMENT ? config.serviceName : null,
-                            useSharedNetwork);
-                    timeout.ifPresent(kafkaNative::withStartupTimeout);
-                    kafkaNative.withEnv(config.containerEnv);
-                    Volumes.addVolumes(kafkaNative, Map.of("/", "/"));
-                    kafkaNative.start();
+                    KafkaNativeContainer kafkaNative = null;
+                    try {
+                        kafkaNative = new KafkaNativeContainer(DockerImageName.parse(config.imageName),
+                                config.fixedExposedPort,
+                                launchMode.getLaunchMode() == LaunchMode.DEVELOPMENT ? config.serviceName : null,
+                                useSharedNetwork);
+                        timeout.ifPresent(kafkaNative::withStartupTimeout);
+                        kafkaNative.withEnv(config.containerEnv);
+                        //                        Volumes.addVolumes(kafkaNative, Map.of(
+                        //                                Files.createDirectory(Path.of("target", "quarkus", "devservices")).toAbsolutePath().toString(),
+                        //                                "/work/scripts"));
+                        kafkaNative.start();
+                        Log.info(kafkaNative.getLogs());
 
-                    return new RunningDevService(Feature.KAFKA_CLIENT.getName(),
-                            kafkaNative.getContainerId(),
-                            kafkaNative::close,
-                            KAFKA_BOOTSTRAP_SERVERS, kafkaNative.getBootstrapServers());
+                        return new RunningDevService(Feature.KAFKA_CLIENT.getName(),
+                                kafkaNative.getContainerId(),
+                                kafkaNative::close,
+                                KAFKA_BOOTSTRAP_SERVERS, kafkaNative.getBootstrapServers());
+                    } catch (Exception e) {
+                        Log.error("Logs: " + kafkaNative.getLogs());
+                        Log.error("Exception from container: " + e.getMessage());
+                        e.printStackTrace();
+                    }
             }
             return null;
         };

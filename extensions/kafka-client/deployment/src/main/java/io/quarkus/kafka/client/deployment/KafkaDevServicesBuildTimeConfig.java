@@ -49,7 +49,7 @@ public class KafkaDevServicesBuildTimeConfig {
     public enum Provider {
         REDPANDA("docker.io/vectorized/redpanda:v22.3.4"),
         STRIMZI("quay.io/strimzi-test-container/test-container:latest-kafka-3.2.1"),
-        KAFKA_NATIVE("quay.io/ogunalp/kafka-native:latest");
+        KAFKA_NATIVE("quay.io/xstefank/kafka-native:999-SNAPSHOT");
 
         private final String defaultImageName;
 

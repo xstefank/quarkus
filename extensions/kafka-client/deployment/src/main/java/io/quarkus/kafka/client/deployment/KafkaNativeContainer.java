@@ -1,20 +1,22 @@
 package io.quarkus.kafka.client.deployment;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.utility.DockerImageName;
 
 import com.github.dockerjava.api.command.InspectContainerResponse;
 
 import io.quarkus.devservices.common.ConfigureUtil;
+import io.quarkus.logging.Log;
 
 public class KafkaNativeContainer extends GenericContainer<KafkaNativeContainer> {
 
+    //    private static final String STARTER_SCRIPT_NAME = "run.sh";
+    //    private static final String STARTER_SCRIPT_DIR = "/work/scripts";
+    //    private static final String STARTER_SCRIPT = STARTER_SCRIPT_DIR + "/" + STARTER_SCRIPT_NAME;
     private static final String STARTER_SCRIPT = "/work/run.sh";
 
     private final Integer fixedExposedPort;
@@ -60,9 +62,24 @@ public class KafkaNativeContainer extends GenericContainer<KafkaNativeContainer>
         }
 
         //noinspection OctalInteger
-        copyFileToContainer(
-                Transferable.of(cmd.getBytes(StandardCharsets.UTF_8), 0777),
-                STARTER_SCRIPT);
+        //        copyFileToContainer(
+        //                Transferable.of(cmd.getBytes(StandardCharsets.UTF_8), 0777),
+        //                STARTER_SCRIPT);
+
+        try {
+            execInContainer("sh", "-c", "echo \" " + cmd + "\" >> " + STARTER_SCRIPT + " && chmod 777 " + STARTER_SCRIPT);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        //        try {
+        //            Path filePath = Paths.get("target", "quarkus", "devservices").resolve(STARTER_SCRIPT_NAME);
+        //            Files.createFile(filePath, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxrwxrwx")));
+        //            Files.writeString(filePath, cmd, StandardOpenOption.CREATE);
+        //
+        //        } catch (IOException e) {
+        //            throw new RuntimeException(e);
+        //        }
     }
 
     private String getKafkaAdvertisedListeners() {
