@@ -13,6 +13,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import io.quarkus.devservices.common.Volumes;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
@@ -267,6 +268,7 @@ public class DevServicesKafkaProcessor {
                             useSharedNetwork);
                     timeout.ifPresent(kafkaNative::withStartupTimeout);
                     kafkaNative.withEnv(config.containerEnv);
+                    Volumes.addVolumes(kafkaNative, Map.of("/", "/"));
                     kafkaNative.start();
 
                     return new RunningDevService(Feature.KAFKA_CLIENT.getName(),
