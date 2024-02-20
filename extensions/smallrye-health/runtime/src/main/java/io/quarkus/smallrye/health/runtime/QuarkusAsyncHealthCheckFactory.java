@@ -5,6 +5,7 @@ import jakarta.inject.Singleton;
 import org.eclipse.microprofile.health.HealthCheck;
 import org.eclipse.microprofile.health.HealthCheckResponse;
 
+import io.quarkus.runtime.BlockingOperationControl;
 import io.smallrye.health.AsyncHealthCheckFactory;
 import io.smallrye.health.api.AsyncHealthCheck;
 import io.smallrye.mutiny.Uni;
@@ -27,12 +28,14 @@ public class QuarkusAsyncHealthCheckFactory extends AsyncHealthCheckFactory {
     @Override
     public Uni<HealthCheckResponse> callSync(HealthCheck healthCheck) {
         Uni<HealthCheckResponse> healthCheckResponseUni = super.callSync(healthCheck);
-        return healthCheckResponseUni.runSubscriptionOn(MutinyHelper.blockingExecutor(vertx, false));
+        return BlockingOperationControl.isBlockingAllowed() ? healthCheckResponseUni
+                : healthCheckResponseUni.runSubscriptionOn(MutinyHelper.blockingExecutor(vertx, false));
     }
 
     @Override
     public Uni<HealthCheckResponse> callAsync(AsyncHealthCheck asyncHealthCheck) {
         Uni<HealthCheckResponse> healthCheckResponseUni = super.callAsync(asyncHealthCheck);
-        return healthCheckResponseUni.runSubscriptionOn(MutinyHelper.executor(vertx));
+        return !BlockingOperationControl.isBlockingAllowed() ? healthCheckResponseUni
+                : healthCheckResponseUni.runSubscriptionOn(MutinyHelper.executor(vertx));
     }
 }
