@@ -18,6 +18,13 @@ public class LRADevServicesBuildTimeConfig {
     public Optional<Boolean> enabled = Optional.empty();
 
     /**
+     * Whether to run the LRA Coordinator in a separate container. This requires the dev mode
+     * to run with {@code quarkus.http.host=<hostname>} or {@code quarkus.http.host=0.0.0.0}.
+     */
+    @ConfigItem(defaultValue = "false")
+    public boolean container;
+
+    /**
      * Optional fixed port the dev service will listen to.
      * <p>
      * If not defined, the port will be chosen randomly.

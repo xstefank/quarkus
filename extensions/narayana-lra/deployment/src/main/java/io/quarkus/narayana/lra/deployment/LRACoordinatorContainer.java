@@ -28,10 +28,9 @@ public class LRACoordinatorContainer extends GenericContainer<LRACoordinatorCont
         if (serviceName != null) {
             withLabel(DevServicesLRACoordinatorProcessor.DEV_SERVICE_LABEL, serviceName);
         }
-        //        withNetworkMode("host"); // doesn't work
         withNetworkMode("bridge");
         withExtraHost("host.docker.internal", "host-gateway");
-        withEnv("JAVA_OPTS", "-Dquarkus.http.port=" + this.fixedExposedPort.getAsInt());
+        //        withEnv("JAVA_OPTS", "-Dquarkus.http.port=" + this.fixedExposedPort.getAsInt());
         if (additionalArgs != null) {
             withCommand(additionalArgs);
         }

@@ -1,5 +1,6 @@
 package io.quarkus.narayana.lra.deployment;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -8,24 +9,59 @@ import java.util.Optional;
 import java.util.OptionalInt;
 
 import org.jboss.logging.Logger;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.testcontainers.utility.DockerImageName;
 
+import com.arjuna.ats.arjuna.StateManager;
+import com.arjuna.ats.arjuna.common.RecoveryEnvironmentBean;
+import com.arjuna.ats.arjuna.common.RecoveryEnvironmentBeanMBean;
+import com.arjuna.ats.arjuna.common.recoveryPropertyManager;
+import com.arjuna.ats.arjuna.coordinator.BasicAction;
+import com.arjuna.ats.arjuna.exceptions.FatalError;
+import com.arjuna.ats.arjuna.exceptions.ObjectStoreException;
+import com.arjuna.ats.arjuna.recovery.RecoveryManager;
+import com.arjuna.ats.arjuna.recovery.RecoveryModule;
+import com.arjuna.ats.internal.arjuna.recovery.RecoveryManagerImple;
+import com.arjuna.common.internal.util.propertyservice.BeanPopulator;
+import com.arjuna.common.logging.commonI18NLogger;
+import com.arjuna.common.logging.commonLogger;
+import com.arjuna.common.util.ConfigurationInfo;
+import com.arjuna.common.util.propertyservice.AbstractPropertiesFactory;
+import com.arjuna.common.util.propertyservice.FileLocator;
+import com.arjuna.common.util.propertyservice.PropertiesFactory;
+import com.arjuna.common.util.propertyservice.PropertiesFactorySax;
+import com.arjuna.common.util.propertyservice.PropertiesFactoryStax;
+
+import io.narayana.lra.coordinator.api.Coordinator;
+import io.narayana.lra.coordinator.api.RecoveryCoordinator;
+import io.narayana.lra.coordinator.domain.model.LongRunningAction;
+import io.narayana.lra.coordinator.internal.LRARecoveryModule;
+import io.narayana.lra.coordinator.internal.RecoveringLRA;
+import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.deployment.Feature;
 import io.quarkus.deployment.IsNormal;
+import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.BuildSteps;
+import io.quarkus.deployment.builditem.AdditionalClassLoaderResourcesBuildItem;
+import io.quarkus.deployment.builditem.AdditionalIndexedClassesBuildItem;
+import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.CuratedApplicationShutdownBuildItem;
 import io.quarkus.deployment.builditem.DevServicesResultBuildItem;
 import io.quarkus.deployment.builditem.DevServicesResultBuildItem.RunningDevService;
 import io.quarkus.deployment.builditem.DevServicesSharedNetworkBuildItem;
 import io.quarkus.deployment.builditem.DockerStatusBuildItem;
+import io.quarkus.deployment.builditem.GeneratedClassBuildItem;
 import io.quarkus.deployment.builditem.LaunchModeBuildItem;
 import io.quarkus.deployment.console.ConsoleInstalledBuildItem;
 import io.quarkus.deployment.console.StartupLogCompressor;
 import io.quarkus.deployment.dev.devservices.GlobalDevServicesConfig;
 import io.quarkus.deployment.logging.LoggingSetupBuildItem;
+import io.quarkus.deployment.util.IoUtil;
 import io.quarkus.devservices.common.ContainerAddress;
 import io.quarkus.devservices.common.ContainerLocator;
+import io.quarkus.resteasy.reactive.spi.AdditionalResourceClassBuildItem;
 import io.quarkus.runtime.LaunchMode;
 import io.quarkus.runtime.configuration.ConfigUtils;
 
@@ -53,6 +89,59 @@ public class DevServicesLRACoordinatorProcessor {
     static volatile boolean first = true;
 
     @BuildStep
+    public void instrument(final CombinedIndexBuildItem index,
+            BuildProducer<GeneratedClassBuildItem> generatedClassBuildItemBuildProducer) throws IOException {
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(Coordinator.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(RecoveryCoordinator.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(LRARecoveryModule.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(RecoveryModule.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(LongRunningAction.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(BasicAction.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(StateManager.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(RecoveringLRA.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(ObjectStoreException.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(RecoveryManager.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(RecoveryManagerImple.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(FatalError.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(recoveryPropertyManager.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(RecoveryEnvironmentBean.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(RecoveryEnvironmentBeanMBean.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(BeanPopulator.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(PropertiesFactory.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(AbstractPropertiesFactory.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(PropertiesFactoryStax.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(PropertiesFactorySax.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(ConfigurationInfo.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(FileLocator.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(commonLogger.class));
+        generatedClassBuildItemBuildProducer.produce(createGeneratedClassBuildItem(commonI18NLogger.class));
+    }
+
+    private static @NotNull GeneratedClassBuildItem createGeneratedClassBuildItem(Class<?> clazz) throws IOException {
+        final String classname = clazz.getName();
+        final ClassLoader cl = Thread.currentThread().getContextClassLoader();
+        final byte[] bytes = IoUtil.readClassAsBytes(cl, classname);
+        return new GeneratedClassBuildItem(false, classname, bytes);
+    }
+
+    @BuildStep
+    public void addCoordinatorClassToIndex(
+            BuildProducer<AdditionalIndexedClassesBuildItem> additionalIndexedClassesBuildItemBuildProducer,
+            BuildProducer<AdditionalClassLoaderResourcesBuildItem> additionalClassLoaderResourcesBuildItemBuildProducer)
+            throws IOException {
+        System.out.println("sdafsadfsadfsadf ----------------");
+        additionalIndexedClassesBuildItemBuildProducer
+                .produce(new AdditionalIndexedClassesBuildItem(Coordinator.class.getName()));
+
+        //            String cName = Coordinator.class.getName();
+        //            String classAsPath = cName.replace('.', '/') + ".class";
+        //            InputStream is = Coordinator.class.getClassLoader().getResourceAsStream(classAsPath);
+        //
+        //            additionalClassLoaderResourcesBuildItemBuildProducer.produce(new AdditionalClassLoaderResourcesBuildItem(
+        //                    Map.of(cName, IOUtils.toByteArray(is))));
+    }
+
+    @BuildStep
     public DevServicesResultBuildItem startLRADevService(
             DockerStatusBuildItem dockerStatusBuildItem,
             LaunchModeBuildItem launchMode,
@@ -60,8 +149,30 @@ public class DevServicesLRACoordinatorProcessor {
             List<DevServicesSharedNetworkBuildItem> devServicesSharedNetworkBuildItem,
             Optional<ConsoleInstalledBuildItem> consoleInstalledBuildItem,
             CuratedApplicationShutdownBuildItem closeBuildItem,
-            LoggingSetupBuildItem loggingSetupBuildItem, GlobalDevServicesConfig devServicesConfig) {
+            LoggingSetupBuildItem loggingSetupBuildItem, GlobalDevServicesConfig devServicesConfig,
+            BuildProducer<AdditionalBeanBuildItem> additionalBeanBuildItemBuildProducer,
+            BuildProducer<AdditionalResourceClassBuildItem> additionalResourceClassBuildItemBuildProducer,
+            CombinedIndexBuildItem combinedIndexBuildItem) throws IOException {
 
+        //        additionalBeanBuildItemBuildProducer.produce(new AdditionalBeanBuildItem(Coordinator.class));
+        additionalResourceClassBuildItemBuildProducer.produce(
+                new AdditionalResourceClassBuildItem(combinedIndexBuildItem.getIndex().getClassByName(Coordinator.class),
+                        "/lra-coordinator"));
+
+        if (lraBuildTimeConfig.devservices.container) {
+            return runCoordinatorInContainer(dockerStatusBuildItem, launchMode, lraBuildTimeConfig,
+                    devServicesSharedNetworkBuildItem, consoleInstalledBuildItem, closeBuildItem, loggingSetupBuildItem,
+                    devServicesConfig);
+        }
+
+        return null;
+    }
+
+    private @Nullable DevServicesResultBuildItem runCoordinatorInContainer(DockerStatusBuildItem dockerStatusBuildItem,
+            LaunchModeBuildItem launchMode, LRABuildTimeConfig lraBuildTimeConfig,
+            List<DevServicesSharedNetworkBuildItem> devServicesSharedNetworkBuildItem,
+            Optional<ConsoleInstalledBuildItem> consoleInstalledBuildItem, CuratedApplicationShutdownBuildItem closeBuildItem,
+            LoggingSetupBuildItem loggingSetupBuildItem, GlobalDevServicesConfig devServicesConfig) {
         LRADevServiceConfig configuration = new LRADevServiceConfig(lraBuildTimeConfig.devservices);
 
         if (devService != null) {
