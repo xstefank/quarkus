@@ -25,6 +25,7 @@ public final class KeycloakDevServicesRequiredBuildItem extends MultiBuildItem {
 
     private static final Logger LOG = Logger.getLogger(KeycloakDevServicesProcessor.class);
     public static final String OIDC_AUTH_SERVER_URL_CONFIG_KEY = "quarkus.oidc.auth-server-url";
+    public static final String OIDC_HEALTH_URL = "quarkus.oidc.health.url";
     private static final String OIDC_PROVIDER_CONFIG_KEY = "quarkus.oidc.provider";
 
     private final KeycloakDevServicesConfigurator devServicesConfigurator;

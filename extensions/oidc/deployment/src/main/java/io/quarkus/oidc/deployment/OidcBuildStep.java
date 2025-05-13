@@ -106,6 +106,7 @@ import io.quarkus.security.runtime.SecurityConfig;
 import io.quarkus.security.spi.AdditionalSecuredMethodsBuildItem;
 import io.quarkus.security.spi.ClassSecurityAnnotationBuildItem;
 import io.quarkus.security.spi.RegisterClassSecurityCheckBuildItem;
+import io.quarkus.smallrye.health.deployment.spi.HealthBuildItem;
 import io.quarkus.tls.deployment.spi.TlsRegistryBuildItem;
 import io.quarkus.vertx.core.deployment.CoreVertxBuildItem;
 import io.quarkus.vertx.http.deployment.EagerSecurityInterceptorBindingBuildItem;
@@ -175,6 +176,12 @@ public class OidcBuildStep {
             }
 
         }
+    }
+
+    @BuildStep
+    HealthBuildItem addHealthCheck(OidcBuildTimeConfig config) {
+        return new HealthBuildItem("io.quarkus.oidc.health.OIDCHealthCheck",
+                config.healthEnabled());
     }
 
     @BuildStep

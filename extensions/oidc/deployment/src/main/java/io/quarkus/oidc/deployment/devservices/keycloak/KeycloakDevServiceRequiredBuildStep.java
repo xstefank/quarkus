@@ -1,6 +1,7 @@
 package io.quarkus.oidc.deployment.devservices.keycloak;
 
 import static io.quarkus.devservices.keycloak.KeycloakDevServicesRequiredBuildItem.OIDC_AUTH_SERVER_URL_CONFIG_KEY;
+import static io.quarkus.devservices.keycloak.KeycloakDevServicesRequiredBuildItem.OIDC_HEALTH_URL;
 
 import java.util.HashMap;
 
@@ -36,6 +37,7 @@ public class KeycloakDevServiceRequiredBuildStep {
             var configProperties = new HashMap<String, String>();
             configProperties.put(OIDC_AUTH_SERVER_URL_CONFIG_KEY, ctx.authServerInternalUrl());
             configProperties.put(APPLICATION_TYPE_CONFIG_KEY, getOidcApplicationType());
+            configProperties.put(OIDC_HEALTH_URL, ctx.oidcHealthUrl());
             if (config.createClient()) {
                 configProperties.put(CLIENT_ID_CONFIG_KEY, ctx.oidcClientId());
                 configProperties.put(CLIENT_SECRET_CONFIG_KEY, ctx.oidcClientSecret());

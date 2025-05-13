@@ -198,6 +198,13 @@ public interface KeycloakDevServicesConfig {
     OptionalInt port();
 
     /**
+     * The specific management port fot the dev service to listen on.
+     * <p>
+     * If not specified, a random port is selected.
+     */
+    OptionalInt managementPort();
+
+    /**
      * Environment variables to be passed to the container.
      */
     @ConfigDocMapKey("environment-variable-name")
