@@ -39,7 +39,7 @@ public class QuarkusAsyncHealthCheckFactory extends AsyncHealthCheckFactory {
         // Subscription to healthCheckResponseUni is deferred until the outer Uni is subscribed to
         return Uni.createFrom().emitter(new Consumer<>() {
             @Override
-            public void accept(UniEmitter<? super HealthCheckResponse> emitter) {
+            public void accept(final UniEmitter<? super HealthCheckResponse> emitter) {
                 healthCheckResponseUni
                         .runSubscriptionOn(new Executor() {
                             @Override
@@ -53,7 +53,10 @@ public class QuarkusAsyncHealthCheckFactory extends AsyncHealthCheckFactory {
                                 }, false).onFailure(new Handler<>() {
                                     @Override
                                     public void handle(Throwable t) {
-                                        emitter.fail(t);
+                                        emitter.complete(HealthCheckResponse.named(healthCheck.getClass().getName())
+                                                .down()
+                                                .withData("error", t.getClass().getName() + ": " + t.getMessage())
+                                                .build());
                                     }
                                 });
                             }
