@@ -61,6 +61,7 @@ import picocli.CommandLine.UnmatchedArgumentException;
         Registry.class,
         Info.class,
         Update.class,
+        Migrate.class,
         Version.class,
         CliPlugins.class,
         Completion.class }, scope = ScopeType.INHERIT, sortOptions = false, showDefaultValues = true, versionProvider = Version.class, subcommandsRepeatable = false, mixinStandardHelpOptions = false, commandListHeading = "%nCommands:%n", synopsisHeading = "%nUsage: ", optionListHeading = "Options:%n", headerHeading = "%n", parameterListHeading = "%n")

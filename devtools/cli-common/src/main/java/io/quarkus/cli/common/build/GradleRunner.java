@@ -22,6 +22,7 @@ import io.quarkus.cli.common.PropertiesOptions;
 import io.quarkus.cli.common.RunModeOption;
 import io.quarkus.cli.common.TargetQuarkusVersionGroup;
 import io.quarkus.cli.common.VersionHelper;
+import io.quarkus.cli.common.migrate.MigrateGroup;
 import io.quarkus.cli.common.registry.RegistryClientMixin;
 import io.quarkus.cli.common.update.RewriteGroup;
 import io.quarkus.devtools.messagewriter.MessageWriter;
@@ -188,7 +189,44 @@ public class GradleRunner implements BuildSystemRunner {
             }
         }
         return run(prependExecutable(args));
+    }
 
+    @Override
+    public Integer migrateProject(MigrateGroup migrate) throws Exception {
+        ArrayDeque<String> args = new ArrayDeque<>();
+        args.add("--console");
+        args.add("plain");
+        args.add("--no-daemon");
+        args.add("--stacktrace");
+        args.add("quarkusMigrate");
+        if (migrate.agent != null) {
+            args.add("--agent=" + migrate.agent);
+        }
+        if (migrate.agentArgs != null) {
+            args.add("--agentArgs=" + migrate.agentArgs);
+        }
+        if (migrate.model != null) {
+            args.add("--model=" + migrate.model);
+        }
+        if (migrate.strategy != null) {
+            args.add("--strategy=" + migrate.strategy);
+        }
+        if (migrate.prompt != null) {
+            args.add("--prompt=" + migrate.prompt);
+        }
+        args.add("--permissionMode=" + migrate.permissionMode);
+        if (migrate.noBackup) {
+            args.add("--noBackup");
+        }
+        if (migrate.workspacePath != null) {
+            args.add("--wks=" + migrate.workspacePath);
+        }
+        args.add("--requestTimeout=" + migrate.requestTimeout);
+        args.add("--promptTimeout=" + migrate.promptTimeout);
+        if (migrate.interactive) {
+            args.add("--interactive");
+        }
+        return run(prependExecutable(args));
     }
 
     @Override

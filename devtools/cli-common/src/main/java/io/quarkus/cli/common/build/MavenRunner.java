@@ -21,6 +21,7 @@ import io.quarkus.cli.common.PropertiesOptions;
 import io.quarkus.cli.common.RunModeOption;
 import io.quarkus.cli.common.TargetQuarkusVersionGroup;
 import io.quarkus.cli.common.VersionHelper;
+import io.quarkus.cli.common.migrate.MigrateGroup;
 import io.quarkus.cli.common.registry.RegistryClientMixin;
 import io.quarkus.cli.common.update.RewriteGroup;
 import io.quarkus.devtools.commands.AddExtensions;
@@ -186,6 +187,49 @@ public class MavenRunner implements BuildSystemRunner {
             if (rewrite.run.dryRun) {
                 args.add("-DrewriteDryRun");
             }
+        }
+        args.add("-ntp");
+        return run(prependExecutable(args));
+    }
+
+    @Override
+    public Integer migrateProject(MigrateGroup migrate) throws Exception {
+        ArrayDeque<String> args = new ArrayDeque<>();
+        setMavenProperties(args, true);
+        final ExtensionCatalog extensionCatalog = ToolsUtils.resolvePlatformDescriptorDirectly(
+                ToolsConstants.QUARKUS_CORE_GROUP_ID, null,
+                VersionHelper.clientVersion(),
+                QuarkusProjectHelper.artifactResolver(), MessageWriter.info());
+        final Properties props = ToolsUtils.readQuarkusProperties(extensionCatalog);
+        args.add(ToolsUtils.getPluginKey(props) + ":" + ToolsUtils.getMavenPluginVersion(props) + ":migrate");
+        args.add("-e");
+        args.add("-N");
+        if (migrate.agent != null) {
+            args.add("-Dagent=" + migrate.agent);
+        }
+        if (migrate.agentArgs != null) {
+            args.add("-DagentArgs=" + migrate.agentArgs);
+        }
+        if (migrate.model != null) {
+            args.add("-Dmodel=" + migrate.model);
+        }
+        if (migrate.strategy != null) {
+            args.add("-Dstrategy=" + migrate.strategy);
+        }
+        if (migrate.prompt != null) {
+            args.add("-Dprompt=" + migrate.prompt);
+        }
+        args.add("-DpermissionMode=" + migrate.permissionMode);
+        if (migrate.noBackup) {
+            args.add("-DnoBackup");
+        }
+        if (migrate.workspacePath != null) {
+            args.add("-Dwks=" + migrate.workspacePath);
+        }
+        args.add("-DrequestTimeout=" + migrate.requestTimeout);
+        args.add("-DpromptTimeout=" + migrate.promptTimeout);
+        if (migrate.interactive) {
+            args.add("-Dinteractive=true");
         }
         args.add("-ntp");
         return run(prependExecutable(args));

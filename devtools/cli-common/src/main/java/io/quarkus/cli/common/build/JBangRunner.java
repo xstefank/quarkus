@@ -16,6 +16,7 @@ import io.quarkus.cli.common.OutputOptionMixin;
 import io.quarkus.cli.common.PropertiesOptions;
 import io.quarkus.cli.common.RunModeOption;
 import io.quarkus.cli.common.TargetQuarkusVersionGroup;
+import io.quarkus.cli.common.migrate.MigrateGroup;
 import io.quarkus.cli.common.registry.RegistryClientMixin;
 import io.quarkus.cli.common.update.RewriteGroup;
 import io.quarkus.devtools.project.BuildTool;
@@ -79,6 +80,11 @@ public class JBangRunner implements BuildSystemRunner {
     @Override
     public Integer updateProject(TargetQuarkusVersionGroup targetQuarkusVersion, RewriteGroup rewrite)
             throws Exception {
+        throw new UnsupportedOperationException("Not there yet. ;)");
+    }
+
+    @Override
+    public Integer migrateProject(MigrateGroup migrate) throws Exception {
         throw new UnsupportedOperationException("Not there yet. ;)");
     }
 

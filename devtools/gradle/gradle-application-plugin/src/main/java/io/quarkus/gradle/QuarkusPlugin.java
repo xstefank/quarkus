@@ -64,6 +64,7 @@ import io.quarkus.gradle.tasks.QuarkusInfo;
 import io.quarkus.gradle.tasks.QuarkusListCategories;
 import io.quarkus.gradle.tasks.QuarkusListExtensions;
 import io.quarkus.gradle.tasks.QuarkusListPlatforms;
+import io.quarkus.gradle.tasks.QuarkusMigrate;
 import io.quarkus.gradle.tasks.QuarkusPluginExtensionView;
 import io.quarkus.gradle.tasks.QuarkusRemoteDev;
 import io.quarkus.gradle.tasks.QuarkusRemoveExtension;
@@ -109,6 +110,7 @@ public class QuarkusPlugin implements Plugin<Project> {
     public static final String QUARKUS_GO_OFFLINE_TASK_NAME = "quarkusGoOffline";
     public static final String QUARKUS_INFO_TASK_NAME = "quarkusInfo";
     public static final String QUARKUS_UPDATE_TASK_NAME = "quarkusUpdate";
+    public static final String QUARKUS_MIGRATE_TASK_NAME = "quarkusMigrate";
     public static final String IMAGE_BUILD_TASK_NAME = "imageBuild";
     public static final String IMAGE_PUSH_TASK_NAME = "imagePush";
     public static final String DEPLOY_TASK_NAME = "deploy";
@@ -186,6 +188,7 @@ public class QuarkusPlugin implements Plugin<Project> {
         tasks.register(REMOVE_EXTENSION_TASK_NAME, QuarkusRemoveExtension.class);
         tasks.register(QUARKUS_INFO_TASK_NAME, QuarkusInfo.class);
         tasks.register(QUARKUS_UPDATE_TASK_NAME, QuarkusUpdate.class);
+        tasks.register(QUARKUS_MIGRATE_TASK_NAME, QuarkusMigrate.class);
         tasks.register(QUARKUS_GO_OFFLINE_TASK_NAME, QuarkusGoOffline.class, task -> {
             task.setCompileClasspath(project.getConfigurations()
                     .getByName(ApplicationDeploymentClasspathBuilder.getBaseRuntimeConfigName(LaunchMode.NORMAL)));

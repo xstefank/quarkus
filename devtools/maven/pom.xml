@@ -15,11 +15,12 @@
     <name>Quarkus - Maven Plugin</name>
 
     <properties>
-        <!-- Not sure exactly why but the Maven plugins need to be compiled with Java 11 -->
-        <maven.compiler.target>11</maven.compiler.target>
-        <maven.compiler.release>11</maven.compiler.release>
+        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.release>17</maven.compiler.release>
 
         <quarkus.version>${project.version}</quarkus.version>
+        <!-- TODO: replace with release version once snowdrop/acp-java-client is published -->
+        <acp-java-client.version>0.1.0-SNAPSHOT</acp-java-client.version>
     </properties>
 
     <dependencies>
@@ -166,6 +167,13 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- ACP client library for quarkus:migrate goal (SNAPSHOT — to be released) -->
+        <dependency>
+            <groupId>io.quarkiverse.ai</groupId>
+            <artifactId>acp-java-core</artifactId>
+            <version>${acp-java-client.version}</version>
         </dependency>
 
         <!-- allows us to execute a mojo inside a mojo -->

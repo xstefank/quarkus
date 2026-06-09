@@ -20,6 +20,7 @@ import io.quarkus.cli.common.OutputOptionMixin;
 import io.quarkus.cli.common.PropertiesOptions;
 import io.quarkus.cli.common.RunModeOption;
 import io.quarkus.cli.common.TargetQuarkusVersionGroup;
+import io.quarkus.cli.common.migrate.MigrateGroup;
 import io.quarkus.cli.common.registry.RegistryClientMixin;
 import io.quarkus.cli.common.update.RewriteGroup;
 import io.quarkus.devtools.project.BuildTool;
@@ -112,6 +113,8 @@ public interface BuildSystemRunner {
 
     Integer updateProject(TargetQuarkusVersionGroup targetQuarkusVersion, RewriteGroup rewrite)
             throws Exception;
+
+    Integer migrateProject(MigrateGroup migrate) throws Exception;
 
     BuildCommandArgs prepareAction(String action, BuildOptions buildOptions, RunModeOption runMode, List<String> params);
 
