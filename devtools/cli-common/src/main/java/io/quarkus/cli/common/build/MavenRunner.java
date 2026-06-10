@@ -223,6 +223,9 @@ public class MavenRunner implements BuildSystemRunner {
         if (migrate.noBackup) {
             args.add("-DnoBackup");
         }
+        if (migrate.noUpdate) {
+            args.add("-DnoUpdate");
+        }
         if (migrate.workspacePath != null) {
             args.add("-Dwks=" + migrate.workspacePath);
         }

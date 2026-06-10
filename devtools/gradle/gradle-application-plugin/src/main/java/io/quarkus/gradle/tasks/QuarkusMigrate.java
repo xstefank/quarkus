@@ -51,7 +51,9 @@ public abstract class QuarkusMigrate extends DefaultTask {
         }
     }
 
-    private static final String MIGRATION_SKILL_URL = "https://raw.githubusercontent.com/quarkusio/skills/main/skills/migrate-spring-to-quarkus/SKILL.md";
+    private static final String SKILL_URL_TEMPLATE = "https://raw.githubusercontent.com/quarkusio/skills/main/skills/%s/SKILL.md";
+    private static final String MIGRATION_SKILL_URL = SKILL_URL_TEMPLATE.formatted("migrate-spring-to-quarkus");
+    private static final String UPDATE_SKILL_URL = SKILL_URL_TEMPLATE.formatted("quarkus-update");
     private static final String COMPLETION_INSTRUCTION = " When you have fully completed all migration steps, end your final message with the exact line: \"Migration complete. Press Enter to finish.\"";
     private static final String STRATEGY_SPRING_COMPAT = "spring-compat";
     private static final String STRATEGY_NATIVE = "native";
@@ -69,6 +71,7 @@ public abstract class QuarkusMigrate extends DefaultTask {
     private String prompt;
     private String permissionMode = "allow_always";
     private boolean noBackup = false;
+    private boolean noUpdate = false;
     private String wks;
     private int requestTimeout = 30;
     private int promptTimeout = 0;
@@ -152,6 +155,16 @@ public abstract class QuarkusMigrate extends DefaultTask {
     @Option(description = "Disable workspace backup before running the migration.", option = "noBackup")
     public void setNoBackup(boolean noBackup) {
         this.noBackup = noBackup;
+    }
+
+    @Input
+    public boolean isNoUpdate() {
+        return noUpdate;
+    }
+
+    @Option(description = "Disable automatic Quarkus update after migration.", option = "noUpdate")
+    public void setNoUpdate(boolean noUpdate) {
+        this.noUpdate = noUpdate;
     }
 
     @Input
@@ -261,8 +274,7 @@ public abstract class QuarkusMigrate extends DefaultTask {
                 stopSpinner(spinner);
                 String stopReason = response.stopReason().getValue();
                 if (!interactive || !"end_turn".equalsIgnoreCase(stopReason)) {
-                    getLogger().lifecycle("Done. Stop reason: " + stopReason);
-                    getLogger().lifecycle("The agent may have used an older Quarkus version based on its training data. Run 'gradle quarkusUpdate' to upgrade to the latest available release.");
+                    getLogger().lifecycle("Migration step done.");
                     break;
                 }
                 System.out.println();
@@ -274,6 +286,17 @@ public abstract class QuarkusMigrate extends DefaultTask {
                     break;
                 }
                 currentPrompt = userInput;
+            }
+
+            if (!noUpdate) {
+                getLogger().lifecycle("Running Quarkus update skill...");
+                Thread spinner = startSpinner();
+                client.prompt(new PromptRequest(
+                        List.of(new TextContent("Read and execute the skill at " + UPDATE_SKILL_URL
+                                + " for the project at " + workspacePath + ".")),
+                        session.sessionId()));
+                stopSpinner(spinner);
+                getLogger().lifecycle("Update complete.");
             }
 
         } catch (Exception e) {
@@ -362,7 +385,8 @@ public abstract class QuarkusMigrate extends DefaultTask {
                             "      \"Bash(./mvnw *)\",\n" +
                             "      \"Bash(gradle *)\",\n" +
                             "      \"Bash(./gradlew *)\",\n" +
-                            "      \"Bash(git *)\"\n" +
+                            "      \"Bash(git *)\",\n" +
+                            "      \"Bash(quarkus *)\"\n" +
                             "    ]\n" +
                             "  }\n" +
                             "}\n");

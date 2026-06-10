@@ -52,7 +52,9 @@ public class MigrateMojo extends AbstractMojo {
         }
     }
 
-    private static final String MIGRATION_SKILL_URL = "https://raw.githubusercontent.com/quarkusio/skills/main/skills/migrate-spring-to-quarkus/SKILL.md";
+    private static final String SKILL_URL_TEMPLATE = "https://raw.githubusercontent.com/quarkusio/skills/main/skills/%s/SKILL.md";
+    private static final String MIGRATION_SKILL_URL = SKILL_URL_TEMPLATE.formatted("migrate-spring-to-quarkus");
+    private static final String UPDATE_SKILL_URL = SKILL_URL_TEMPLATE.formatted("quarkus-update");
     private static final String STRATEGY_SPRING_COMPAT = "spring-compat";
     private static final String STRATEGY_NATIVE = "native";
 
@@ -85,6 +87,9 @@ public class MigrateMojo extends AbstractMojo {
 
     @Parameter(property = "noBackup", defaultValue = "false")
     boolean noBackup = false;
+
+    @Parameter(property = "noUpdate", defaultValue = "false")
+    boolean noUpdate = false;
 
     @Parameter(property = "wks")
     String wks;
@@ -164,9 +169,7 @@ public class MigrateMojo extends AbstractMojo {
                 stopSpinner(spinner);
                 String stopReason = response.stopReason().getValue();
                 if (!interactive || !"end_turn".equalsIgnoreCase(stopReason)) {
-                    getLog().info("Done. Stop reason: " + stopReason);
-                    getLog().info(
-                            "The agent may have used an older Quarkus version based on its training data. Run 'mvn quarkus:update' to upgrade to the latest available release.");
+                    getLog().info("Migration step done.");
                     break;
                 }
                 System.out.println();
@@ -178,6 +181,17 @@ public class MigrateMojo extends AbstractMojo {
                     break;
                 }
                 currentPrompt = userInput;
+            }
+
+            if (!noUpdate) {
+                getLog().info("Running Quarkus update skill...");
+                Thread spinner = startSpinner();
+                client.prompt(new PromptRequest(
+                        List.of(new TextContent("Read and execute the skill at " + UPDATE_SKILL_URL
+                                + " for the project at " + workspacePath + ".")),
+                        session.sessionId()));
+                stopSpinner(spinner);
+                getLog().info("Update complete.");
             }
 
         } catch (Exception e) {
@@ -267,7 +281,8 @@ public class MigrateMojo extends AbstractMojo {
                             "      \"Bash(./mvnw *)\",\n" +
                             "      \"Bash(gradle *)\",\n" +
                             "      \"Bash(./gradlew *)\",\n" +
-                            "      \"Bash(git *)\"\n" +
+                            "      \"Bash(git *)\",\n" +
+                            "      \"Bash(quarkus *)\"\n" +
                             "    ]\n" +
                             "  }\n" +
                             "}\n");

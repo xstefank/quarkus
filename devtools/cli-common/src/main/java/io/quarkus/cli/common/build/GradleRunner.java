@@ -218,6 +218,9 @@ public class GradleRunner implements BuildSystemRunner {
         if (migrate.noBackup) {
             args.add("--noBackup");
         }
+        if (migrate.noUpdate) {
+            args.add("--noUpdate");
+        }
         if (migrate.workspacePath != null) {
             args.add("--wks=" + migrate.workspacePath);
         }

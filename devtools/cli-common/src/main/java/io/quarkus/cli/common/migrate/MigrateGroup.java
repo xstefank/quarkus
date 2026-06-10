@@ -39,19 +39,23 @@ public class MigrateGroup {
             "--no-backup" }, description = "Disable workspace backup before running the migration.", defaultValue = "false")
     public boolean noBackup = false;
 
-    @CommandLine.Option(order = 8, names = { "--wks",
+    @CommandLine.Option(order = 8, names = {
+            "--no-update" }, description = "Disable automatic Quarkus update after migration.", defaultValue = "false")
+    public boolean noUpdate = false;
+
+    @CommandLine.Option(order = 9, names = { "--wks",
             "--workspace-path" }, description = "Absolute path to the project to migrate. Defaults to the current directory.")
     public String workspacePath;
 
-    @CommandLine.Option(order = 9, names = {
+    @CommandLine.Option(order = 10, names = {
             "--request-timeout" }, description = "Timeout in seconds for individual ACP protocol requests.", defaultValue = "30")
     public int requestTimeout = 30;
 
-    @CommandLine.Option(order = 10, names = {
+    @CommandLine.Option(order = 11, names = {
             "--prompt-timeout" }, description = "Timeout in seconds for the migration prompt (0 = no timeout).", defaultValue = "0")
     public int promptTimeout = 0;
 
-    @CommandLine.Option(order = 11, names = { "-i",
+    @CommandLine.Option(order = 12, names = { "-i",
             "--interactive" }, description = "Enable interactive mode to respond to agent questions during migration.", defaultValue = "false")
     public boolean interactive;
 }
