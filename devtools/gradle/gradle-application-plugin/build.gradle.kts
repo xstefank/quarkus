@@ -3,7 +3,6 @@ plugins {
 }
 
 dependencies {
-    implementation(libs.acp.java.core)
     implementation(libs.smallrye.config.yaml)
     implementation("io.quarkus:quarkus-analytics-common")
     compileOnly(libs.kotlin.gradle.plugin.api)

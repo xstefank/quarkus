@@ -63,6 +63,8 @@
         <system-stubs-jupiter.version>2.0.2</system-stubs-jupiter.version>
         <awaitility.version>4.3.0</awaitility.version>
         <java-properties.version>0.0.7</java-properties.version>
+        <!-- TODO: replace with release version once snowdrop/acp-java-client is published -->
+        <acp-java-client.version>0.1.0-SNAPSHOT</acp-java-client.version>
     </properties>
     <modules>
         <module>registry-client</module>
@@ -192,6 +194,11 @@
                 <type>test-jar</type>
                 <scope>test</scope>
                 <version>${quarkus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.quarkiverse.ai</groupId>
+                <artifactId>acp-java-core</artifactId>
+                <version>${acp-java-client.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
