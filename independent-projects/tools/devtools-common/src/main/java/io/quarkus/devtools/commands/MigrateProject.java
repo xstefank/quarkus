@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -61,6 +62,7 @@ public class MigrateProject {
     private int requestTimeout = 30;
     private int promptTimeout = 0;
     private boolean interactive = false;
+    private boolean autoSelectAgent = false;
 
     private volatile boolean spinnerRunning = false;
     private volatile boolean lastWasContent = false;
@@ -117,6 +119,11 @@ public class MigrateProject {
 
     public MigrateProject interactive(boolean interactive) {
         this.interactive = interactive;
+        return this;
+    }
+
+    public MigrateProject autoSelectAgent(boolean autoSelectAgent) {
+        this.autoSelectAgent = autoSelectAgent;
         return this;
     }
 
@@ -218,20 +225,67 @@ public class MigrateProject {
         if (agent != null) {
             return new AgentDescriptor(agent, agentArgs != null ? agentArgs.split("\\s+") : new String[] {});
         }
+        List<AgentDescriptor> found = new ArrayList<>();
         for (AgentDescriptor descriptor : KNOWN_AGENTS) {
             if (isOnPath(descriptor.binary)) {
-                log.info("Auto-detected ACP agent: " + descriptor.binary);
-                return descriptor;
+                found.add(descriptor);
             }
         }
-        throw new IllegalStateException(
-                "No ACP-compatible agent found on PATH. Specify one explicitly with the agent option,\n" +
-                        "or install a supported agent. Examples (may change — see the full list and providers at\n" +
-                        "https://github.com/snowdrop/acp-java-client#acp-agents):\n" +
-                        "  Claude Code : npm install -g @agentclientprotocol/claude-agent-acp\n" +
-                        "  OpenCode    : see https://opencode.ai/docs/acp/\n" +
-                        "  Gemini CLI  : npm install -g @google/gemini-cli\n" +
-                        "  Pi          : npm install -g pi-acp");
+        if (found.isEmpty()) {
+            throw new IllegalStateException(
+                    "No ACP-compatible agent found on PATH. Specify one explicitly with the agent option,\n" +
+                            "or install a supported agent. Examples (may change — see the full list and providers at\n" +
+                            "https://github.com/snowdrop/acp-java-client#acp-agents):\n" +
+                            "  Claude Code : npm install -g @agentclientprotocol/claude-agent-acp\n" +
+                            "  OpenCode    : see https://opencode.ai/docs/acp/\n" +
+                            "  Gemini CLI  : npm install -g @google/gemini-cli\n" +
+                            "  Pi          : npm install -g pi-acp");
+        }
+        if (found.size() == 1) {
+            log.info("Auto-detected ACP agent: " + found.get(0).binary);
+            return found.get(0);
+        }
+        if (autoSelectAgent || !isInteractiveTerminal()) {
+            log.info("Auto-detected ACP agent: " + found.get(0).binary
+                    + " (multiple found; use --agent or --auto-select-agent to control selection)");
+            return found.get(0);
+        }
+        return promptAgentSelection(found);
+    }
+
+    private AgentDescriptor promptAgentSelection(List<AgentDescriptor> found) throws IOException {
+        System.out.println("Multiple ACP-compatible agents found on PATH:");
+        for (int i = 0; i < found.size(); i++) {
+            System.out.println("  [" + (i + 1) + "] " + found.get(i).binary);
+        }
+        System.out.print("Select agent [1-" + found.size() + "]: ");
+        System.out.flush();
+        String line = readOneLine();
+        if (line != null && !line.trim().isEmpty()) {
+            try {
+                int choice = Integer.parseInt(line.trim());
+                if (choice >= 1 && choice <= found.size()) {
+                    return found.get(choice - 1);
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        log.warn("Invalid selection; using first detected agent: " + found.get(0).binary);
+        return found.get(0);
+    }
+
+    private static String readOneLine() throws IOException {
+        if (System.console() != null) {
+            return System.console().readLine();
+        }
+        StringBuilder sb = new StringBuilder();
+        int ch;
+        while ((ch = System.in.read()) != -1 && ch != '\n') {
+            if (ch != '\r') {
+                sb.append((char) ch);
+            }
+        }
+        return sb.toString();
     }
 
     private static boolean isOnPath(String binary) {

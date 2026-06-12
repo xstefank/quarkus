@@ -58,4 +58,8 @@ public class MigrateGroup {
     @CommandLine.Option(order = 12, names = { "-i",
             "--interactive" }, description = "Enable interactive mode to respond to agent questions during migration.", defaultValue = "false")
     public boolean interactive;
+
+    @CommandLine.Option(order = 13, names = {
+            "--auto-select-agent" }, description = "When multiple ACP agents are detected on PATH, automatically use the first one instead of prompting.", defaultValue = "false")
+    public boolean autoSelectAgent;
 }

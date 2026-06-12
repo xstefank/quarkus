@@ -55,6 +55,9 @@ public class MigrateMojo extends AbstractMojo {
     @Parameter(property = "interactive", defaultValue = "false")
     boolean interactive;
 
+    @Parameter(property = "autoSelectAgent", defaultValue = "false")
+    boolean autoSelectAgent = false;
+
     @Override
     public void execute() throws MojoExecutionException {
         final String workspacePath = wks != null ? wks
@@ -73,6 +76,7 @@ public class MigrateMojo extends AbstractMojo {
                     .requestTimeout(requestTimeout)
                     .promptTimeout(promptTimeout)
                     .interactive(interactive)
+                    .autoSelectAgent(autoSelectAgent)
                     .execute();
         } catch (Exception e) {
             throw new MojoExecutionException("Migration failed", e);
