@@ -268,7 +268,7 @@ public class MigrateProject {
                             "    \"allow\": [\n" +
                             "      \"Edit(**/*)\",\n" +
                             "      \"Write(**/*)\",\n" +
-                            "      \"WebFetch(*)\",\n" +
+                            "      \"WebFetch(https://**)\",\n" +
                             "      \"Bash(mvn *)\",\n" +
                             "      \"Bash(./mvnw *)\",\n" +
                             "      \"Bash(gradle *)\",\n" +

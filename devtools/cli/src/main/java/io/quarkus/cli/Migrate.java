@@ -2,8 +2,8 @@ package io.quarkus.cli;
 
 import java.util.concurrent.Callable;
 
-import io.quarkus.cli.common.build.BuildSystemRunner;
 import io.quarkus.cli.common.migrate.MigrateGroup;
+import io.quarkus.devtools.commands.MigrateProject;
 import picocli.CommandLine;
 
 @CommandLine.Command(name = "migrate", aliases = {
@@ -16,8 +16,21 @@ public class Migrate extends BaseBuildCommand implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         try {
-            final BuildSystemRunner runner = getRunner();
-            return runner.migrateProject(migrate);
+            final String workspacePath = migrate.workspacePath != null ? migrate.workspacePath
+                    : projectRoot().toAbsolutePath().toString();
+            new MigrateProject(output, workspacePath)
+                    .agent(migrate.agent)
+                    .agentArgs(migrate.agentArgs)
+                    .strategy(migrate.strategy)
+                    .prompt(migrate.prompt)
+                    .permissionMode(migrate.permissionMode)
+                    .noBackup(migrate.noBackup)
+                    .noUpdate(migrate.noUpdate)
+                    .requestTimeout(migrate.requestTimeout)
+                    .promptTimeout(migrate.promptTimeout)
+                    .interactive(migrate.interactive)
+                    .execute();
+            return CommandLine.ExitCode.OK;
         } catch (Exception e) {
             return output.handleCommandException(e, "Unable to run Quarkus project migration: " + e.getMessage());
         }
