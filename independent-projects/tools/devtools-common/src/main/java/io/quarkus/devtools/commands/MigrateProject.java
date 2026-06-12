@@ -45,7 +45,7 @@ public class MigrateProject {
     private static final List<AgentDescriptor> KNOWN_AGENTS = List.of(
             new AgentDescriptor("claude-agent-acp", new String[] {}),
             new AgentDescriptor("opencode", new String[] { "acp" }),
-            new AgentDescriptor("gemini", new String[] { "--acp" }),
+            new AgentDescriptor("gemini", new String[] { "--acp", "--skip-trust" }),
             new AgentDescriptor("pi-acp", new String[] {}));
 
     private final MessageWriter log;
@@ -230,7 +230,8 @@ public class MigrateProject {
                         "https://github.com/snowdrop/acp-java-client#acp-agents):\n" +
                         "  Claude Code : npm install -g @agentclientprotocol/claude-agent-acp\n" +
                         "  OpenCode    : see https://opencode.ai/docs/acp/\n" +
-                        "  Gemini CLI  : npm install -g @google/gemini-cli");
+                        "  Gemini CLI  : npm install -g @google/gemini-cli\n" +
+                        "  Pi          : npm install -g pi-acp");
     }
 
     private static boolean isOnPath(String binary) {
@@ -268,7 +269,7 @@ public class MigrateProject {
                             "    \"allow\": [\n" +
                             "      \"Edit(**/*)\",\n" +
                             "      \"Write(**/*)\",\n" +
-                            "      \"WebFetch(https://**)\",\n" +
+                            "      \"WebFetch(*)\",\n" +
                             "      \"Bash(mvn *)\",\n" +
                             "      \"Bash(./mvnw *)\",\n" +
                             "      \"Bash(gradle *)\",\n" +
