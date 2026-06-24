@@ -79,37 +79,8 @@ public class MigrateProject {
     private volatile StdioAcpClientTransport activeTransport;
 
     public MigrateProject(MessageWriter log, String workspacePath) {
-        this.log = timestamped(log);
+        this.log = log;
         this.workspacePath = workspacePath;
-    }
-
-    private static MessageWriter timestamped(MessageWriter delegate) {
-        return new MessageWriter() {
-            @Override
-            public void info(String msg) {
-                delegate.info(ts() + msg);
-            }
-
-            @Override
-            public void warn(String msg) {
-                delegate.warn(ts() + msg);
-            }
-
-            @Override
-            public void error(String msg) {
-                delegate.error(ts() + msg);
-            }
-
-            @Override
-            public void debug(String msg) {
-                delegate.debug(ts() + msg);
-            }
-
-            @Override
-            public boolean isDebugEnabled() {
-                return delegate.isDebugEnabled();
-            }
-        };
     }
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
@@ -519,11 +490,7 @@ public class MigrateProject {
             Object content = chunk.content();
             String text = content instanceof Map<?, ?> ? String.valueOf(((Map<?, ?>) content).get("text"))
                     : String.valueOf(content);
-            if (!text.isEmpty() && Character.isWhitespace(text.charAt(text.length() - 1))) {
-                System.out.println(text.stripTrailing());
-            } else {
-                System.out.print(text);
-            }
+            printContent(text);
             System.out.flush();
             lastWasContent = true;
             if (!completionDetected && text.contains(COMPLETION_MARKER)) {
@@ -541,11 +508,34 @@ public class MigrateProject {
                 terminator.start();
             }
         } else if (lastWasContent) {
-            System.out.println();
+            if (!atLineStart) {
+                System.out.println();
+                atLineStart = true;
+            }
             System.out.flush();
             lastWasContent = false;
-            // Content block ended — let the spinner resume during the next tool call / think
             spinnerSuppressed = false;
+        }
+    }
+
+    private void printContent(String text) {
+        int start = 0;
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == '\n') {
+                if (atLineStart && i > start) {
+                    System.out.print(ts());
+                }
+                System.out.print(text.substring(start, i + 1));
+                start = i + 1;
+                atLineStart = true;
+            }
+        }
+        if (start < text.length()) {
+            if (atLineStart) {
+                System.out.print(ts());
+                atLineStart = false;
+            }
+            System.out.print(text.substring(start));
         }
     }
 
