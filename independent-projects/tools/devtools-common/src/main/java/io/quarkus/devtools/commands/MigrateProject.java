@@ -36,7 +36,7 @@ import io.quarkus.devtools.messagewriter.MessageWriter;
 public class MigrateProject {
 
     public static final String STRATEGY_SPRING_COMPAT = "spring-compat";
-    public static final String STRATEGY_NATIVE = "native";
+    public static final String STRATEGY_FULL = "full";
 
     private static final String SKILL_URL_TEMPLATE = "https://raw.githubusercontent.com/quarkusio/skills/main/skills/%s/SKILL.md";
     private static final String MIGRATION_SKILL_URL = SKILL_URL_TEMPLATE.formatted("migrate-spring-to-quarkus");
@@ -65,6 +65,7 @@ public class MigrateProject {
     private boolean autoSelectAgent = false;
 
     private volatile boolean spinnerRunning = false;
+    private volatile boolean spinnerSuppressed = false;
     private volatile boolean lastWasContent = false;
 
     public MigrateProject(MessageWriter log, String workspacePath) {
@@ -186,8 +187,10 @@ public class MigrateProject {
             BufferedReader stdin = interactive ? new BufferedReader(new InputStreamReader(System.in)) : null;
             while (true) {
                 Thread spinner = startSpinner();
+                Thread heartbeat = startHeartbeat();
                 PromptResponse response = client.prompt(
                         new PromptRequest(List.of(new TextContent(currentPrompt)), session.sessionId()));
+                stopHeartbeat(heartbeat);
                 stopSpinner(spinner);
                 String stopReason = response.stopReason().getValue();
                 if (!interactive || !"end_turn".equalsIgnoreCase(stopReason)) {
@@ -208,10 +211,12 @@ public class MigrateProject {
             if (!noUpdate) {
                 log.info("Running Quarkus update skill...");
                 Thread spinner = startSpinner();
+                Thread heartbeat = startHeartbeat();
                 client.prompt(new PromptRequest(
                         List.of(new TextContent("Read and execute the skill at " + UPDATE_SKILL_URL
                                 + " for the project at " + workspacePath + ".")),
                         session.sessionId()));
+                stopHeartbeat(heartbeat);
                 stopSpinner(spinner);
                 log.info("Update complete.");
             }
@@ -329,6 +334,7 @@ public class MigrateProject {
                             "      \"Bash(gradle *)\",\n" +
                             "      \"Bash(./gradlew *)\",\n" +
                             "      \"Bash(git *)\",\n" +
+                            "      \"Bash(java *)\",\n" +
                             "      \"Bash(quarkus *)\"\n" +
                             "    ]\n" +
                             "  }\n" +
@@ -364,9 +370,14 @@ public class MigrateProject {
         if (System.console() != null) {
             return true;
         }
-        // System.console() returns null when Maven/Gradle wraps stdout, but we may still be in a real terminal
+        // System.console() can return null when the runtime wraps stdout (e.g. Quarkus CLI startup),
+        // even though we're in a real terminal. Fall back to env var heuristics.
         String term = System.getenv("TERM");
-        return term != null && !term.equals("dumb");
+        if (term != null && !term.equals("dumb")) {
+            return true;
+        }
+        String colorterm = System.getenv("COLORTERM");
+        return colorterm != null && !colorterm.isEmpty();
     }
 
     private Thread startSpinner() {
@@ -374,12 +385,17 @@ public class MigrateProject {
             return null;
         }
         spinnerRunning = true;
+        spinnerSuppressed = false;
         String[] frames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
         Thread t = new Thread(() -> {
             int i = 0;
             while (spinnerRunning) {
-                System.out.print("\r" + frames[i++ % frames.length] + " Agent is working...");
-                System.out.flush();
+                if (!spinnerSuppressed) {
+                    System.out.print("\r" + frames[i++ % frames.length] + " Agent is working...");
+                    System.out.flush();
+                } else {
+                    i = 0;
+                }
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
@@ -406,13 +422,45 @@ public class MigrateProject {
         }
     }
 
+    private Thread startHeartbeat() {
+        long startMs = System.currentTimeMillis();
+        Thread t = new Thread(() -> {
+            try {
+                while (!Thread.currentThread().isInterrupted()) {
+                    Thread.sleep(60_000);
+                    long elapsed = (System.currentTimeMillis() - startMs) / 60_000;
+                    spinnerSuppressed = true;
+                    System.out.println("\r[" + elapsed + " min] Agent is still working...");
+                    System.out.flush();
+                    spinnerSuppressed = false;
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        t.setDaemon(true);
+        t.start();
+        return t;
+    }
+
+    private static void stopHeartbeat(Thread heartbeat) {
+        if (heartbeat != null) {
+            heartbeat.interrupt();
+        }
+    }
+
     private void handleUpdate(SessionNotification notification) {
-        spinnerRunning = false;
         String updateType = notification.meta() != null
                 ? String.valueOf(notification.meta().get("sessionUpdate"))
                 : null;
         Object update = notification.update();
         if (update instanceof ContentChunk && "agent_message_chunk".equals(updateType)) {
+            if (!lastWasContent) {
+                // First chunk in this content block: suppress spinner and clear its line
+                spinnerSuppressed = true;
+                System.out.print("\r                          \r");
+                System.out.flush();
+            }
             ContentChunk chunk = (ContentChunk) update;
             Object content = chunk.content();
             String text = content instanceof Map<?, ?> ? String.valueOf(((Map<?, ?>) content).get("text"))
@@ -428,6 +476,8 @@ public class MigrateProject {
             System.out.println();
             System.out.flush();
             lastWasContent = false;
+            // Content block ended — let the spinner resume during the next tool call / think
+            spinnerSuppressed = false;
         }
     }
 
@@ -437,8 +487,8 @@ public class MigrateProject {
         if (!interactive) {
             if (STRATEGY_SPRING_COMPAT.equals(strategy)) {
                 sb.append(" Use the Spring compatibility migration strategy (skip the strategy selection step).");
-            } else if (STRATEGY_NATIVE.equals(strategy)) {
-                sb.append(" Use the native Quarkus migration strategy (skip the strategy selection step).");
+            } else if (STRATEGY_FULL.equals(strategy)) {
+                sb.append(" Use the full Quarkus migration strategy (skip the strategy selection step).");
             }
             sb.append(" Skip the git workflow step — apply all changes in place.");
         } else {

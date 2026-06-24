@@ -72,7 +72,7 @@ public abstract class QuarkusMigrate extends DefaultTask {
         return strategy;
     }
 
-    @Option(description = "Migration strategy: spring-compat (use Quarkus Spring compatibility extensions, minimal code changes) or native (replace Spring annotations with JAX-RS/CDI). Skips the interactive strategy selection step.", option = "strategy")
+    @Option(description = "Migration strategy: spring-compat (use Quarkus Spring compatibility extensions, minimal code changes) or full (replace Spring annotations with JAX-RS/CDI, full Quarkus experience). Skips the interactive strategy selection step.", option = "strategy")
     public void setStrategy(String strategy) {
         this.strategy = strategy;
     }

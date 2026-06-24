@@ -5,7 +5,7 @@ import picocli.CommandLine;
 public class MigrateGroup {
 
     public static final String STRATEGY_SPRING_COMPAT = "spring-compat";
-    public static final String STRATEGY_NATIVE = "native";
+    public static final String STRATEGY_FULL = "full";
 
     @CommandLine.Option(order = 0, names = { "-a",
             "--agent" }, description = "ACP-compatible agent binary to use for migration (e.g. claude-agent-acp, opencode, gemini). Auto-detected from PATH if not specified.")
@@ -24,7 +24,7 @@ public class MigrateGroup {
     public String model;
 
     @CommandLine.Option(order = 4, names = {
-            "--strategy" }, description = "Migration strategy: spring-compat (use Quarkus Spring compatibility extensions, minimal code changes) or native (replace Spring annotations with JAX-RS/CDI).", defaultValue = STRATEGY_SPRING_COMPAT)
+            "--strategy" }, description = "Migration strategy: spring-compat (use Quarkus Spring compatibility extensions, minimal code changes) or full (replace Spring annotations with JAX-RS/CDI, full Quarkus experience).", defaultValue = STRATEGY_SPRING_COMPAT)
     public String strategy;
 
     @CommandLine.Option(order = 5, names = { "-p",
