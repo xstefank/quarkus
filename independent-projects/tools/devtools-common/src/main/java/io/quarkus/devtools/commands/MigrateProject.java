@@ -89,6 +89,13 @@ public class MigrateProject {
         return "[" + LocalTime.now().format(TIME_FMT) + "] ";
     }
 
+    private static String elapsed(long startMs) {
+        long secs = (System.currentTimeMillis() - startMs) / 1000;
+        long mins = secs / 60;
+        long remainSecs = secs % 60;
+        return mins > 0 ? mins + "m " + remainSecs + "s" : remainSecs + "s";
+    }
+
     public MigrateProject agent(String agent) {
         this.agent = agent;
         return this;
@@ -222,6 +229,7 @@ public class MigrateProject {
 
             String currentPrompt = migrationPrompt;
             BufferedReader stdin = interactive ? new BufferedReader(new InputStreamReader(System.in)) : null;
+            long migrationStartMs = System.currentTimeMillis();
             while (true) {
                 Thread spinner = startSpinner();
                 try {
@@ -230,13 +238,13 @@ public class MigrateProject {
                     stopSpinner(spinner);
                     String stopReason = response.stopReason().getValue();
                     if (!interactive || !"end_turn".equalsIgnoreCase(stopReason)) {
-                        log.info("Migration step done.");
+                        log.info("Migration step done in " + elapsed(migrationStartMs) + ".");
                         break;
                     }
                 } catch (Exception e) {
                     stopSpinner(spinner);
                     if (completionDetected) {
-                        log.info("Migration complete — agent signalled completion.");
+                        log.info("Migration complete — agent signalled completion in " + elapsed(migrationStartMs) + ".");
                         break;
                     }
                     if (timeoutReached) {
@@ -258,11 +266,19 @@ public class MigrateProject {
 
             if (!noUpdate) {
                 log.info("Running Quarkus update skill...");
+                completionDetected = false;
                 Thread spinner = startSpinner();
-                client.prompt(new PromptRequest(
-                        List.of(new TextContent("Read and execute the skill at " + UPDATE_SKILL_URL
-                                + " for the project at " + workspacePath + ".")),
-                        session.sessionId()));
+                try {
+                    client.prompt(new PromptRequest(
+                            List.of(new TextContent("Read and execute the skill at " + UPDATE_SKILL_URL
+                                    + " for the project at " + workspacePath + "."
+                                    + " When done, output the exact line: \"" + COMPLETION_MARKER + "\".")),
+                            session.sessionId()));
+                } catch (Exception e) {
+                    if (!completionDetected) {
+                        throw e;
+                    }
+                }
                 stopSpinner(spinner);
                 log.info("Update complete.");
             }
