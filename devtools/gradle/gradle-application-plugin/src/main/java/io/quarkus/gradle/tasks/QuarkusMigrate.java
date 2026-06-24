@@ -27,6 +27,7 @@ public abstract class QuarkusMigrate extends DefaultTask {
     private int promptTimeout = 0;
     private boolean interactive = false;
     private boolean autoSelectAgent = false;
+    private int globalTimeout = 0;
 
     public QuarkusMigrate() {
         setDescription("Migrate a Spring Boot project to Quarkus using an ACP-compatible AI agent.");
@@ -169,6 +170,16 @@ public abstract class QuarkusMigrate extends DefaultTask {
         this.autoSelectAgent = autoSelectAgent;
     }
 
+    @Input
+    public int getGlobalTimeout() {
+        return globalTimeout;
+    }
+
+    @Option(description = "Global timeout in minutes for the entire migration (0 = disabled).", option = "globalTimeout")
+    public void setGlobalTimeout(int globalTimeout) {
+        this.globalTimeout = globalTimeout;
+    }
+
     @TaskAction
     public void migrate() {
         final String workspacePath = wks != null ? wks : getProject().getProjectDir().getAbsolutePath();
@@ -186,6 +197,7 @@ public abstract class QuarkusMigrate extends DefaultTask {
                     .promptTimeout(promptTimeout)
                     .interactive(interactive)
                     .autoSelectAgent(autoSelectAgent)
+                    .globalTimeout(globalTimeout)
                     .execute();
         } catch (Exception e) {
             throw new GradleException("Migration failed", e);

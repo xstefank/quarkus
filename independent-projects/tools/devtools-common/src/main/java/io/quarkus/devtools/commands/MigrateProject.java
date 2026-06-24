@@ -8,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +43,10 @@ public class MigrateProject {
     private static final String SKILL_URL_TEMPLATE = "https://raw.githubusercontent.com/quarkusio/skills/main/skills/%s/SKILL.md";
     private static final String MIGRATION_SKILL_URL = SKILL_URL_TEMPLATE.formatted("migrate-spring-to-quarkus");
     private static final String UPDATE_SKILL_URL = SKILL_URL_TEMPLATE.formatted("quarkus-update");
+    private static final String COMPLETION_MARKER = "MIGRATION_COMPLETE";
     private static final String COMPLETION_INSTRUCTION = " When you have fully completed all migration steps, end your final message with the exact line: \"Migration complete. Press Enter to finish.\"";
+    private static final String COMPLETION_MARKER_INSTRUCTION = " When you have fully completed all migration steps, end your final message with a summary of what was done and any remaining TODOs, followed by the exact line: \""
+            + COMPLETION_MARKER + "\".";
 
     private static final List<AgentDescriptor> KNOWN_AGENTS = List.of(
             new AgentDescriptor("claude-agent-acp", new String[] {}),
@@ -63,14 +68,54 @@ public class MigrateProject {
     private int promptTimeout = 0;
     private boolean interactive = false;
     private boolean autoSelectAgent = false;
+    private int globalTimeout = 0;
 
     private volatile boolean spinnerRunning = false;
     private volatile boolean spinnerSuppressed = false;
     private volatile boolean lastWasContent = false;
+    private volatile boolean atLineStart = true;
+    private volatile boolean completionDetected = false;
+    private volatile boolean timeoutReached = false;
+    private volatile StdioAcpClientTransport activeTransport;
 
     public MigrateProject(MessageWriter log, String workspacePath) {
-        this.log = log;
+        this.log = timestamped(log);
         this.workspacePath = workspacePath;
+    }
+
+    private static MessageWriter timestamped(MessageWriter delegate) {
+        return new MessageWriter() {
+            @Override
+            public void info(String msg) {
+                delegate.info(ts() + msg);
+            }
+
+            @Override
+            public void warn(String msg) {
+                delegate.warn(ts() + msg);
+            }
+
+            @Override
+            public void error(String msg) {
+                delegate.error(ts() + msg);
+            }
+
+            @Override
+            public void debug(String msg) {
+                delegate.debug(ts() + msg);
+            }
+
+            @Override
+            public boolean isDebugEnabled() {
+                return delegate.isDebugEnabled();
+            }
+        };
+    }
+
+    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
+
+    private static String ts() {
+        return "[" + LocalTime.now().format(TIME_FMT) + "] ";
     }
 
     public MigrateProject agent(String agent) {
@@ -128,6 +173,11 @@ public class MigrateProject {
         return this;
     }
 
+    public MigrateProject globalTimeout(int globalTimeout) {
+        this.globalTimeout = globalTimeout;
+        return this;
+    }
+
     public void execute() throws Exception {
         if (!interactive) {
             log.info("Tip: run with interactive mode to respond to agent questions during migration.");
@@ -159,6 +209,22 @@ public class MigrateProject {
                 .build();
 
         StdioAcpClientTransport transport = new StdioAcpClientTransport(agentParams);
+        activeTransport = transport;
+        if (globalTimeout > 0) {
+            long timeoutMs = globalTimeout * 60_000L;
+            Thread globalTimer = new Thread(() -> {
+                try {
+                    Thread.sleep(timeoutMs);
+                    log.warn("Global timeout of " + globalTimeout + " min reached — terminating migration.");
+                    timeoutReached = true;
+                    forceTerminateTransport(activeTransport);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            globalTimer.setDaemon(true);
+            globalTimer.start();
+        }
 
         try (AcpSyncClient client = AcpClient.sync(transport)
                 .sessionUpdateConsumer(this::handleUpdate)
@@ -187,15 +253,26 @@ public class MigrateProject {
             BufferedReader stdin = interactive ? new BufferedReader(new InputStreamReader(System.in)) : null;
             while (true) {
                 Thread spinner = startSpinner();
-                Thread heartbeat = startHeartbeat();
-                PromptResponse response = client.prompt(
-                        new PromptRequest(List.of(new TextContent(currentPrompt)), session.sessionId()));
-                stopHeartbeat(heartbeat);
-                stopSpinner(spinner);
-                String stopReason = response.stopReason().getValue();
-                if (!interactive || !"end_turn".equalsIgnoreCase(stopReason)) {
-                    log.info("Migration step done.");
-                    break;
+                try {
+                    PromptResponse response = client.prompt(
+                            new PromptRequest(List.of(new TextContent(currentPrompt)), session.sessionId()));
+                    stopSpinner(spinner);
+                    String stopReason = response.stopReason().getValue();
+                    if (!interactive || !"end_turn".equalsIgnoreCase(stopReason)) {
+                        log.info("Migration step done.");
+                        break;
+                    }
+                } catch (Exception e) {
+                    stopSpinner(spinner);
+                    if (completionDetected) {
+                        log.info("Migration complete — agent signalled completion.");
+                        break;
+                    }
+                    if (timeoutReached) {
+                        throw new Exception(
+                                "Migration aborted: global timeout of " + globalTimeout + " min exceeded.", e);
+                    }
+                    throw e;
                 }
                 System.out.println();
                 System.out.print("> ");
@@ -211,12 +288,10 @@ public class MigrateProject {
             if (!noUpdate) {
                 log.info("Running Quarkus update skill...");
                 Thread spinner = startSpinner();
-                Thread heartbeat = startHeartbeat();
                 client.prompt(new PromptRequest(
                         List.of(new TextContent("Read and execute the skill at " + UPDATE_SKILL_URL
                                 + " for the project at " + workspacePath + ".")),
                         session.sessionId()));
-                stopHeartbeat(heartbeat);
                 stopSpinner(spinner);
                 log.info("Update complete.");
             }
@@ -387,23 +462,29 @@ public class MigrateProject {
         spinnerRunning = true;
         spinnerSuppressed = false;
         String[] frames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
+        long startMs = System.currentTimeMillis();
         Thread t = new Thread(() -> {
             int i = 0;
             while (spinnerRunning) {
                 if (!spinnerSuppressed) {
-                    System.out.print("\r" + frames[i++ % frames.length] + " Agent is working...");
+                    long elapsed = System.currentTimeMillis() - startMs;
+                    long mins = elapsed / 60_000;
+                    long secs = (elapsed % 60_000) / 1000;
+                    String timer = mins > 0 ? mins + "m " + secs + "s" : secs + "s";
+                    String line = "\r" + frames[i++ % frames.length] + " Agent is working... (" + timer + ")    ";
+                    System.out.print(line);
                     System.out.flush();
                 } else {
                     i = 0;
                 }
                 try {
-                    Thread.sleep(100);
+                    Thread.sleep(500);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 }
             }
-            System.out.print("\r                          \r");
+            System.out.print("\r                                        \r");
             System.out.flush();
         });
         t.setDaemon(true);
@@ -422,33 +503,6 @@ public class MigrateProject {
         }
     }
 
-    private Thread startHeartbeat() {
-        long startMs = System.currentTimeMillis();
-        Thread t = new Thread(() -> {
-            try {
-                while (!Thread.currentThread().isInterrupted()) {
-                    Thread.sleep(60_000);
-                    long elapsed = (System.currentTimeMillis() - startMs) / 60_000;
-                    spinnerSuppressed = true;
-                    System.out.println("\r[" + elapsed + " min] Agent is still working...");
-                    System.out.flush();
-                    spinnerSuppressed = false;
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        t.setDaemon(true);
-        t.start();
-        return t;
-    }
-
-    private static void stopHeartbeat(Thread heartbeat) {
-        if (heartbeat != null) {
-            heartbeat.interrupt();
-        }
-    }
-
     private void handleUpdate(SessionNotification notification) {
         String updateType = notification.meta() != null
                 ? String.valueOf(notification.meta().get("sessionUpdate"))
@@ -458,7 +512,7 @@ public class MigrateProject {
             if (!lastWasContent) {
                 // First chunk in this content block: suppress spinner and clear its line
                 spinnerSuppressed = true;
-                System.out.print("\r                          \r");
+                System.out.print("\r                                        \r");
                 System.out.flush();
             }
             ContentChunk chunk = (ContentChunk) update;
@@ -472,6 +526,20 @@ public class MigrateProject {
             }
             System.out.flush();
             lastWasContent = true;
+            if (!completionDetected && text.contains(COMPLETION_MARKER)) {
+                completionDetected = true;
+                Thread terminator = new Thread(() -> {
+                    try {
+                        Thread.sleep(1500);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                    forceTerminateTransport(activeTransport);
+                });
+                terminator.setDaemon(true);
+                terminator.start();
+            }
         } else if (lastWasContent) {
             System.out.println();
             System.out.flush();
@@ -491,6 +559,7 @@ public class MigrateProject {
                 sb.append(" Use the full Quarkus migration strategy (skip the strategy selection step).");
             }
             sb.append(" Skip the git workflow step — apply all changes in place.");
+            sb.append(COMPLETION_MARKER_INSTRUCTION);
         } else {
             sb.append(COMPLETION_INSTRUCTION);
         }

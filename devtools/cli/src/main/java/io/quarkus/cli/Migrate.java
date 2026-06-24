@@ -30,6 +30,7 @@ public class Migrate extends BaseBuildCommand implements Callable<Integer> {
                     .promptTimeout(migrate.promptTimeout)
                     .interactive(migrate.interactive)
                     .autoSelectAgent(migrate.autoSelectAgent)
+                    .globalTimeout(migrate.globalTimeout)
                     .execute();
             return CommandLine.ExitCode.OK;
         } catch (Exception e) {

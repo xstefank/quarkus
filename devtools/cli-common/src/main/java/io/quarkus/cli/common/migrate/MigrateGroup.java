@@ -62,4 +62,8 @@ public class MigrateGroup {
     @CommandLine.Option(order = 13, names = {
             "--auto-select-agent" }, description = "When multiple ACP agents are detected on PATH, automatically use the first one instead of prompting.", defaultValue = "false")
     public boolean autoSelectAgent;
+
+    @CommandLine.Option(order = 14, names = {
+            "--global-timeout" }, description = "Global timeout in minutes for the entire migration (0 = disabled).", defaultValue = "0")
+    public int globalTimeout = 0;
 }
