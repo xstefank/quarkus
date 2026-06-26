@@ -1,9 +1,7 @@
 package io.quarkus.devtools.commands;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -25,7 +23,6 @@ import io.quarkiverse.agentclientprotocol.sdk.spec.schema.v1.NewSessionRequest;
 import io.quarkiverse.agentclientprotocol.sdk.spec.schema.v1.NewSessionResponse;
 import io.quarkiverse.agentclientprotocol.sdk.spec.schema.v1.PermissionOptionKind;
 import io.quarkiverse.agentclientprotocol.sdk.spec.schema.v1.PromptRequest;
-import io.quarkiverse.agentclientprotocol.sdk.spec.schema.v1.PromptResponse;
 import io.quarkiverse.agentclientprotocol.sdk.spec.schema.v1.RequestPermissionResponse;
 import io.quarkiverse.agentclientprotocol.sdk.spec.schema.v1.SessionNotification;
 import io.quarkiverse.agentclientprotocol.sdk.spec.schema.v1.TextContent;
@@ -40,12 +37,11 @@ public class MigrateProject {
     public static final String STRATEGY_SPRING_COMPAT = "spring-compat";
     public static final String STRATEGY_FULL = "full";
 
-    private static final String SKILL_URL_TEMPLATE = "https://raw.githubusercontent.com/quarkusio/skills/main/skills/%s/SKILL.md";
-    private static final String MIGRATION_SKILL_URL = SKILL_URL_TEMPLATE.formatted("migrate-spring-to-quarkus");
-    private static final String UPDATE_SKILL_URL = SKILL_URL_TEMPLATE.formatted("quarkus-update");
+    private static final String MIGRATION_SKILL_URL = "https://raw.githubusercontent.com/quarkusio/skills/main/skills/migrate-spring-to-quarkus/SKILL.md";
+    private static final String UPDATE_SKILL_URL = "https://raw.githubusercontent.com/quarkusio/skills/main/skills/quarkus-update/SKILL.md";
     private static final String COMPLETION_MARKER = "MIGRATION_COMPLETE";
     private static final String COMPLETION_INSTRUCTION = " When you have fully completed all migration steps, end your final message with the exact line: \"Migration complete. Press Enter to finish.\"";
-    private static final String COMPLETION_MARKER_INSTRUCTION = " When you have fully completed all migration steps, end your final message with a summary of what was done and any remaining TODOs, followed by the exact line: \""
+    private static final String COMPLETION_MARKER_INSTRUCTION = " When fully done, output the exact line: \""
             + COMPLETION_MARKER + "\".";
 
     private static final List<AgentDescriptor> KNOWN_AGENTS = List.of(
@@ -157,6 +153,7 @@ public class MigrateProject {
     }
 
     public void execute() throws Exception {
+        final long executeStartMs = System.currentTimeMillis();
         if (!interactive) {
             log.info("Tip: run with interactive mode to respond to agent questions during migration.");
         } else if (!STRATEGY_SPRING_COMPAT.equals(strategy)) {
@@ -228,16 +225,14 @@ public class MigrateProject {
             log.info("Session: " + session.sessionId());
 
             String currentPrompt = migrationPrompt;
-            BufferedReader stdin = interactive ? new BufferedReader(new InputStreamReader(System.in)) : null;
             long migrationStartMs = System.currentTimeMillis();
             while (true) {
                 Thread spinner = startSpinner();
                 try {
-                    PromptResponse response = client.prompt(
+                    client.prompt(
                             new PromptRequest(List.of(new TextContent(currentPrompt)), session.sessionId()));
                     stopSpinner(spinner);
-                    String stopReason = response.stopReason().getValue();
-                    if (!interactive || !"end_turn".equalsIgnoreCase(stopReason)) {
+                    if (!interactive) {
                         log.info("Migration step done in " + elapsed(migrationStartMs) + ".");
                         break;
                     }
@@ -251,12 +246,15 @@ public class MigrateProject {
                         throw new Exception(
                                 "Migration aborted: global timeout of " + globalTimeout + " min exceeded.", e);
                     }
-                    throw e;
+                    if (!interactive) {
+                        throw e;
+                    }
+                    log.debug("Agent turn ended with exception in interactive mode: " + e.getMessage());
                 }
-                System.out.println();
+                System.out.print("\r" + " ".repeat(50) + "\r");
                 System.out.print("> ");
                 System.out.flush();
-                String userInput = stdin.readLine();
+                String userInput = readOneLine();
                 if (userInput == null || userInput.trim().isEmpty()) {
                     log.info("Migration session ended.");
                     break;
@@ -267,6 +265,7 @@ public class MigrateProject {
             if (!noUpdate) {
                 log.info("Running Quarkus update skill...");
                 completionDetected = false;
+                long updateStartMs = System.currentTimeMillis();
                 Thread spinner = startSpinner();
                 try {
                     client.prompt(new PromptRequest(
@@ -280,7 +279,13 @@ public class MigrateProject {
                     }
                 }
                 stopSpinner(spinner);
-                log.info("Update complete.");
+                log.info("Update complete in " + elapsed(updateStartMs) + ".");
+            }
+
+            log.info("Total time: " + elapsed(executeStartMs) + ".");
+            if (!interactive) {
+                log.info("Tip: larger projects may not be fully migrated in a single run due to AI context window limits."
+                        + " If any tasks remain, run the migration again (optionally, using the '--interactive' flag) to address them.");
             }
 
         } finally {
@@ -388,6 +393,7 @@ public class MigrateProject {
                     "{\n" +
                             "  \"permissions\": {\n" +
                             "    \"allow\": [\n" +
+                            "      \"Read(**/*)\",\n" +
                             "      \"Edit(**/*)\",\n" +
                             "      \"Write(**/*)\",\n" +
                             "      \"WebFetch(*)\",\n" +
@@ -511,17 +517,19 @@ public class MigrateProject {
             lastWasContent = true;
             if (!completionDetected && text.contains(COMPLETION_MARKER)) {
                 completionDetected = true;
-                Thread terminator = new Thread(() -> {
-                    try {
-                        Thread.sleep(1500);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
-                    forceTerminateTransport(activeTransport);
-                });
-                terminator.setDaemon(true);
-                terminator.start();
+                if (noUpdate) {
+                    Thread terminator = new Thread(() -> {
+                        try {
+                            Thread.sleep(1500);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+                        forceTerminateTransport(activeTransport);
+                    });
+                    terminator.setDaemon(true);
+                    terminator.start();
+                }
             }
         } else if (lastWasContent) {
             if (!atLineStart) {
@@ -567,7 +575,9 @@ public class MigrateProject {
             sb.append(" Skip the git workflow step — apply all changes in place.");
             sb.append(COMPLETION_MARKER_INSTRUCTION);
         } else {
-            sb.append(COMPLETION_INSTRUCTION);
+            sb.append(" The user is present and will respond interactively."
+                    + " Follow every pause point in the skill: when the skill says to stop and wait for a response,"
+                    + " end your current message and do not continue until the user replies.");
         }
         return sb.toString();
     }
@@ -575,6 +585,10 @@ public class MigrateProject {
     private void backupWorkspace(String path) throws Exception {
         Path source = Path.of(path);
         Path backup = source.getParent().resolve(source.getFileName() + "-backup");
+        int counter = 2;
+        while (Files.exists(backup)) {
+            backup = source.getParent().resolve(source.getFileName() + "-backup-" + counter++);
+        }
         log.info("Backup    : " + backup);
         try {
             copyDirectory(source, backup);
