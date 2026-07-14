@@ -1,0 +1,28 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.enforcing.deps</groupId>
+  <artifactId>classifier-split-root-bom</artifactId>
+  <version>1.0.0</version>
+  <packaging>pom</packaging>
+
+  <name>Classifier Split Root BOM</name>
+
+  <!--
+    Imports classifier-split-nested-bom the way quarkus-bom imports netty-bom, so the reproducer also
+    exercises recursive <scope>import</scope> resolution, not just a flat BOM's own dependencyManagement.
+  -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.enforcing.deps</groupId>
+        <artifactId>classifier-split-nested-bom</artifactId>
+        <version>1.0.0</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>

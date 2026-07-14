@@ -1,0 +1,27 @@
+plugins {
+    id 'java'
+    id 'io.quarkus'
+}
+
+repositories {
+    mavenLocal {
+        content {
+            includeGroup 'org.enforcing.deps' // for dependencies built in this test
+            includeGroupByRegex 'io.quarkus.*'
+            includeGroup 'org.hibernate.orm'
+        }
+    }
+    mavenCentral()
+}
+
+dependencies {
+    implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation enforcedPlatform("org.enforcing.deps:classifier-split-root-bom:1.0.0")
+    implementation 'io.quarkus:quarkus-rest'
+    // Unversioned: resolved via classifier-split-root-bom -> classifier-split-nested-bom dependencyManagement.
+    // Without the fix, Gradle sees conflicting BOM-declared versions (1.0.0 for no classifier, 1.0.0-osx for
+    // classifier osx-aarch_64) for this same group:artifact and fails with ConflictingConstraintsException.
+    implementation 'org.enforcing.deps:classifier-split-lib'
+    testImplementation 'io.quarkus:quarkus-junit'
+    testImplementation 'io.rest-assured:rest-assured'
+}

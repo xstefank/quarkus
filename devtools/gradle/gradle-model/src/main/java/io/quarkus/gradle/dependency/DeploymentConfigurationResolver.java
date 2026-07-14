@@ -14,6 +14,7 @@ import org.gradle.api.artifacts.ResolvedConfiguration;
 import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Provider;
 
 import io.quarkus.gradle.tooling.dependency.DependencyUtils;
 import io.quarkus.gradle.tooling.dependency.ExtensionDependency;
@@ -41,16 +42,20 @@ public class DeploymentConfigurationResolver {
      * @param project project
      * @param mode launch mode
      * @param configurationName configuration name
+     * @param platformSpecProvider provides the platform's constraints and classifier-conflict overrides; see
+     *        {@link PlatformClassifierConflictResolver}
      */
-    public static void registerDeploymentConfiguration(Project project, LaunchMode mode, String configurationName) {
+    public static void registerDeploymentConfiguration(Project project, LaunchMode mode, String configurationName,
+            Provider<PlatformSpec> platformSpecProvider) {
         project.getConfigurations().register(configurationName,
-                config -> new DeploymentConfigurationResolver(project, config, mode));
+                config -> new DeploymentConfigurationResolver(project, config, mode, platformSpecProvider));
     }
 
     private final Project project;
     private byte walkingFlags;
 
-    private DeploymentConfigurationResolver(Project project, Configuration deploymentConfig, LaunchMode mode) {
+    private DeploymentConfigurationResolver(Project project, Configuration deploymentConfig, LaunchMode mode,
+            Provider<PlatformSpec> platformSpecProvider) {
         this.project = project;
 
         final Configuration baseRuntimeConfig = project.getConfigurations()
@@ -58,6 +63,7 @@ public class DeploymentConfigurationResolver {
         deploymentConfig.setCanBeConsumed(false);
         deploymentConfig.extendsFrom(baseRuntimeConfig);
         deploymentConfig.shouldResolveConsistentlyWith(baseRuntimeConfig);
+        PlatformClassifierConflictResolver.applyOverrides(deploymentConfig, platformSpecProvider);
 
         ListProperty<Dependency> dependencyListProperty = project.getObjects().listProperty(Dependency.class);
         final AtomicReference<Collection<Dependency>> directDeploymentDeps = new AtomicReference<>();

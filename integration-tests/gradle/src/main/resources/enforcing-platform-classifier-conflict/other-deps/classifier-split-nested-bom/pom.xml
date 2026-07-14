@@ -1,0 +1,35 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.enforcing.deps</groupId>
+  <artifactId>classifier-split-nested-bom</artifactId>
+  <version>1.0.0</version>
+  <packaging>pom</packaging>
+
+  <name>Classifier Split Nested BOM</name>
+
+  <!--
+    Mirrors the real-world netty-bom pattern that triggers ConflictingConstraintsException under Gradle:
+    the same groupId:artifactId is declared at different versions for different Maven classifiers. This is
+    valid, unambiguous Maven (classifiers resolve independently there) but has no Gradle equivalent, since
+    Gradle's Maven-BOM-import mechanism produces a single version constraint per group:artifact, discarding
+    classifier information entirely.
+  -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.enforcing.deps</groupId>
+        <artifactId>classifier-split-lib</artifactId>
+        <version>1.0.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.enforcing.deps</groupId>
+        <artifactId>classifier-split-lib</artifactId>
+        <version>1.0.0-osx</version>
+        <classifier>osx-aarch_64</classifier>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>

@@ -9,6 +9,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import org.gradle.api.GradleException;
@@ -184,6 +185,16 @@ public class ApplicationDeploymentClasspathBuilder {
     private final List<Dependency> platformDataDeps = new ArrayList<>();
     private final Map<ArtifactKey, PlatformSpec.Constraint> platformConstraints = new HashMap<>();
 
+    /**
+     * Caches the result of {@link PlatformClassifierConflictResolver#resolve(Project, List)}, which parses the
+     * effective Maven model of the enforced platform BOM(s) to recover classifier-scoped version data that
+     * Gradle's own BOM import discards. Keyed by the declared-order GAV list of the enforced platform
+     * dependencies so that the (potentially large, productized) BOM is only parsed once per unique BOM set,
+     * rather than once per {@link LaunchMode}, since {@link io.quarkus.gradle.QuarkusPlugin#apply} eagerly
+     * constructs one {@link ApplicationDeploymentClasspathBuilder} per launch mode for the same BOM set.
+     */
+    private static final Map<String, Map<ArtifactKey, String>> CLASSIFIER_OVERRIDE_CACHE = new ConcurrentHashMap<>();
+
     public ApplicationDeploymentClasspathBuilder(Project project, LaunchMode mode) {
         this.project = project;
         this.mode = mode;
@@ -207,13 +218,7 @@ public class ApplicationDeploymentClasspathBuilder {
                 // Platform configuration is just implementation, filtered to platform dependencies
                 ListProperty<Dependency> dependencyListProperty = project.getObjects().listProperty(Dependency.class);
                 configuration.getDependencies()
-                        .addAllLater(dependencyListProperty.value(project.provider(() -> project.getConfigurations()
-                                .getByName(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME)
-                                .getAllDependencies()
-                                .stream()
-                                .filter(dependency -> dependency instanceof ModuleDependency &&
-                                        ToolingUtils.isEnforcedPlatform((ModuleDependency) dependency))
-                                .collect(Collectors.toList()))));
+                        .addAllLater(dependencyListProperty.value(project.provider(this::getEnforcedPlatformDependencies)));
                 final PlatformImportsImpl platformImports = ApplicationDeploymentClasspathBuilder.platformImports
                         .computeIfAbsent(this.platformImportName, (ignored) -> new PlatformImportsImpl());
                 // Configures PlatformImportsImpl once the platform configuration is resolved
@@ -286,19 +291,47 @@ public class ApplicationDeploymentClasspathBuilder {
         return platformDataDeps;
     }
 
+    private List<Dependency> getEnforcedPlatformDependencies() {
+        return project.getConfigurations()
+                .getByName(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME)
+                .getAllDependencies()
+                .stream()
+                .filter(dependency -> dependency instanceof ModuleDependency &&
+                        ToolingUtils.isEnforcedPlatform((ModuleDependency) dependency))
+                .collect(Collectors.toList());
+    }
+
     private PlatformSpec resolvePlatformSpec() {
         getPlatformConfiguration().resolve();
-        return new PlatformSpec(platformConstraints, getPlatformConfiguration().getExcludeRules());
+        final List<Dependency> enforcedPlatformDependencies = getEnforcedPlatformDependencies();
+        final Map<ArtifactKey, String> classifierConflictOverrides = CLASSIFIER_OVERRIDE_CACHE.computeIfAbsent(
+                classifierOverrideCacheKey(enforcedPlatformDependencies),
+                ignored -> PlatformClassifierConflictResolver.resolve(project, enforcedPlatformDependencies));
+        return new PlatformSpec(platformConstraints, getPlatformConfiguration().getExcludeRules(),
+                classifierConflictOverrides);
+    }
+
+    /**
+     * Content-based cache key for {@link #CLASSIFIER_OVERRIDE_CACHE}: the declared-order GAV list of the
+     * enforced platform dependencies. Order matters because {@link PlatformClassifierConflictResolver} applies
+     * first-BOM-wins precedence when multiple enforced platforms conflict on the same artifact.
+     */
+    private static String classifierOverrideCacheKey(List<Dependency> enforcedPlatformDependencies) {
+        return enforcedPlatformDependencies.stream()
+                .map(d -> d.getGroup() + ":" + d.getName() + ":" + d.getVersion())
+                .collect(Collectors.joining(","));
     }
 
     private void setUpRuntimeConfiguration() {
         if (!project.getConfigurations().getNames().contains(this.runtimeConfigurationName)) {
             final String baseConfig;
             final boolean disableComponentVariants = isDisableComponentVariants(project);
+            final Property<PlatformSpec> platformSpecProperty;
             if (disableComponentVariants) {
                 baseConfig = ApplicationDeploymentClasspathBuilder.getBaseRuntimeConfigName(mode);
+                platformSpecProperty = null;
             } else {
-                Property<PlatformSpec> platformSpecProperty = project.getObjects()
+                platformSpecProperty = project.getObjects()
                         .property(PlatformSpec.class);
                 QuarkusComponentVariants.addVariants(project, mode,
                         platformSpecProperty.value(project.provider(this::resolvePlatformSpec)));
@@ -309,6 +342,7 @@ public class ApplicationDeploymentClasspathBuilder {
                 configuration.extendsFrom(project.getConfigurations().getByName(baseConfig));
                 if (!disableComponentVariants) {
                     QuarkusComponentVariants.setConditionalAttributes(configuration, project, mode);
+                    PlatformClassifierConflictResolver.applyOverrides(configuration, platformSpecProperty);
                 }
             });
         }
@@ -359,20 +393,30 @@ public class ApplicationDeploymentClasspathBuilder {
                     })));
                 });
             } else {
-                DeploymentConfigurationResolver.registerDeploymentConfiguration(project, mode, deploymentConfigurationName);
+                final Property<PlatformSpec> platformSpecProperty = project.getObjects()
+                        .property(PlatformSpec.class)
+                        .value(project.provider(this::resolvePlatformSpec));
+                DeploymentConfigurationResolver.registerDeploymentConfiguration(project, mode, deploymentConfigurationName,
+                        platformSpecProperty);
             }
         }
     }
 
     private void setUpCompileOnlyConfiguration() {
         if (!project.getConfigurations().getNames().contains(compileOnlyConfigurationName)) {
+            final boolean disableComponentVariants = isDisableComponentVariants(project);
+            final Property<PlatformSpec> platformSpecProperty = disableComponentVariants
+                    ? null
+                    : project.getObjects().property(PlatformSpec.class)
+                            .value(project.provider(this::resolvePlatformSpec));
             project.getConfigurations().register(compileOnlyConfigurationName, config -> {
                 config.extendsFrom(project.getConfigurations().getByName(platformConfigurationName),
                         project.getConfigurations().getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME));
                 config.shouldResolveConsistentlyWith(getDeploymentConfiguration());
                 config.setCanBeConsumed(false);
-                if (!isDisableComponentVariants(project)) {
+                if (!disableComponentVariants) {
                     QuarkusComponentVariants.setCommonAttributes(config.getAttributes(), project.getObjects());
+                    PlatformClassifierConflictResolver.applyOverrides(config, platformSpecProperty);
                 }
             });
         }

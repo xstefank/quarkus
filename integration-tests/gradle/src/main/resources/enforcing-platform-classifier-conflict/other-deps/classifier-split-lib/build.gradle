@@ -1,0 +1,25 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+repositories {
+    mavenLocal {
+        content {
+            includeGroup 'org.enforcing.deps' // for dependencies built in this test
+        }
+    }
+    mavenCentral()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = 'org.enforcing.deps'
+            artifactId = 'classifier-split-lib'
+            version = '1.0.0'
+
+            from components.java
+        }
+    }
+}
