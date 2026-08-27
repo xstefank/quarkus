@@ -384,16 +384,6 @@
                 <version>${smallrye-certificate-generator.version}</version>
             </dependency>
 
-            <!-- Jackson dependencies, imported as a BOM -->
-            <!-- TODO: remove -->
-            <dependency>
-                <groupId>tools.jackson</groupId>
-                <artifactId>jackson-bom</artifactId>
-                <version>${jackson-bom.version}</version>
-                <scope>import</scope>
-                <type>pom</type>
-            </dependency>
-
             <!-- RESTEasy dependencies, imported as a BOM -->
             <!-- As RESTEasy also imports Jackson, we need to import its BOM after the Jackson BOM -->
             <dependency>
